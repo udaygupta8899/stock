@@ -6,6 +6,13 @@ import requests
 from datetime import datetime, timedelta
 from time import sleep
 
+# Set page config for wide mode and title
+st.set_page_config(
+    page_title="Stock Dashboard",
+    layout="wide",  # Enable wide mode by default
+    initial_sidebar_state="expanded"
+)
+
 # Custom CSS for modern UI/UX
 st.markdown("""
 <style>
