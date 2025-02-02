@@ -12,6 +12,73 @@ st.set_page_config(
     layout="wide",  # Enable wide mode by default
     initial_sidebar_state="expanded"
 )
+st.markdown("""
+<style>
+    :root {
+        --primary: #4FC3F7;
+        --background: #0E1117;  /* Dark background */
+        --card-bg: rgba(255, 255, 255, 0.05);  /* Transparent card */
+        --text-color: #ffffff;
+        --hover-color: #4FC3F7;
+    }
+
+    .stApp {
+        background: var(--background);
+        color: var(--text-color);
+        font-family: 'Segoe UI', sans-serif;
+    }
+
+    .metric-card {
+        background: var(--card-bg);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .news-card {
+        background: var(--card-bg);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        transition: transform 0.3s ease;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .news-card:hover {
+        transform: translateY(-3px);
+    }
+
+    h1, h2, h3 {
+        color: var(--hover-color) !important;
+        margin-bottom: 1rem !important;
+    }
+
+    a {
+        color: var(--hover-color);
+        text-decoration: none;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
+
+    .divider {
+        height: 2px;
+        background: linear-gradient(90deg, var(--hover-color) 0%, transparent 100%);
+        margin: 2rem 0;
+    }
+
+    .st-bb { background-color: transparent; }
+    .st-at { background-color: var(--hover-color) !important; }
+</style>
+""", unsafe_allow_html=True)
+
 
 # Custom CSS for modern UI/UX
 st.markdown("""
