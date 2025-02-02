@@ -247,8 +247,8 @@ def get_relevant_news(stock_name, ticker):
         # Strict relevance filtering
         filtered = []
         for article in articles:
-            title = article.get('title', '').lower()
-            desc = article.get('description', '').lower()
+            title = article.get('title', '').lower() if article.get('title') else ""
+            desc = article.get('description', '').lower() if article.get('description') else ""
             if any([
                 stock_name.lower() in title,
                 ticker.lower() in title,
