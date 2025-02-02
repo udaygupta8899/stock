@@ -5,6 +5,7 @@ import pandas as pd
 import requests
 from datetime import datetime, timedelta
 from time import sleep
+from random import randint
 
 # Set page config for wide mode and title
 st.set_page_config(
@@ -79,68 +80,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
-# Custom CSS for modern UI/UX
-st.markdown("""
-<style>
-    :root {
-        --primary: #4FC3F7;
-        --background: #0E1117;
-        --card-bg: rgba(255, 255, 255, 0.05);
-    }
-
-    .stApp {
-        background: var(--background);
-        color: #ffffff;
-        font-family: 'Segoe UI', sans-serif;
-    }
-
-    .metric-card {
-        background: var(--card-bg);
-        border-radius: 16px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .metric-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-    }
-
-    .news-card {
-        background: var(--card-bg);
-        border-radius: 16px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        transition: transform 0.3s ease;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .news-card:hover {
-        transform: translateY(-3px);
-    }
-
-    .st-bb { background-color: transparent; }
-    .st-at { background-color: var(--primary) !important; }
-
-    h1, h2, h3 {
-        color: var(--primary) !important;
-        margin-bottom: 1rem !important;
-    }
-
-    .divider {
-        height: 2px;
-        background: linear-gradient(90deg, var(--primary) 0%, transparent 100%);
-        margin: 2rem 0;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # Stock list
 all_stocks = {
-    "TCS": "TCS.NS",
     "Infosys": "INFY.NS",
     "HDFC Bank": "HDFCBANK.NS",
     "Reliance Industries": "RELIANCE.NS",
@@ -151,6 +92,7 @@ all_stocks = {
     "Larsen & Toubro": "LT.NS",
     "Bajaj Finance": "BAJFINANCE.NS",
     "Hindustan Unilever": "HINDUNILVR.NS",
+    "Tata Consultancy Services": "TCS.NS",
     "Maruti Suzuki": "MARUTI.NS",
     "Mahindra & Mahindra": "M&M.NS",
     "ITC": "ITC.NS",
@@ -204,29 +146,48 @@ st.sidebar.markdown("---")
 selected_period = st.sidebar.selectbox(
     "Time Period",
     ["1d", "1wk", "1mo", "3mo", "6mo", "1y", "2y", "5y", "max"],
-    index=1
+    index=4
 )
 
 st.sidebar.markdown("---")
 st.sidebar.caption("Chart Settings")
 candlestick_ma = st.sidebar.checkbox("Show Moving Averages", value=True)
+show_bollinger = st.sidebar.checkbox("Show Bollinger Bands", value=False)
+show_rsi = st.sidebar.checkbox("Show RSI", value=False)
 
-# Function to fetch stock data
+# Function to fetch stock data with retries and error handling, updated for 1-hour interval
 @st.cache_data(ttl=600)
 def fetch_stock_data(symbol, period):
-    try:
-        stock = yf.Ticker(symbol)
-        df = stock.history(period=period)
-        info = stock.info
-        return df, info
-    except Exception as e:
-        st.error(f"Error fetching data: {e}")
-        return None, None
+    retry_count = 3
+    for _ in range(retry_count):
+        try:
+            stock = yf.Ticker(symbol)
+            if period == "1h":
+                df = stock.history(period="1d", interval="1m")
+                if df.empty:
+                    st.warning("No data found for the last 1 hour. Trying with broader period.")
+                    # Try fetching data with 5-minute intervals if 1m doesn't work
+                    df = stock.history(period="1d", interval="5m")
+
+            else:
+                df = stock.history(period=period)  # Fetch data for other periods (daily, weekly, etc.)
+            info = stock.info
+            return df, info
+        except Exception as e:
+            st.warning(f"Error fetching data (attempting retry): {e}")
+            sleep(randint(1, 3))  # Adding random delay before retry
+    st.error("Failed to fetch stock data after multiple attempts.")
+    return None, None
+
 
 # Improved news filtering
+# Improved news filtering using full company name and ticker symbol
 def get_relevant_news(stock_name, ticker):
     news_api_key = "813bb17cd2704c12a2acf66732f973bc"  # Replace with your key
-    query = f'"{stock_name}" OR "{ticker}"'
+    full_name = stock_name
+    query = f'"{full_name}" OR "{ticker}"'
+    
+    # Get news from the last 7 days
     date_from = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
     
     params = {
@@ -249,12 +210,9 @@ def get_relevant_news(stock_name, ticker):
         for article in articles:
             title = article.get('title', '').lower() if article.get('title') else ""
             desc = article.get('description', '').lower() if article.get('description') else ""
-            if any([
-                stock_name.lower() in title,
-                ticker.lower() in title,
-                stock_name.lower() in desc,
-                ticker.lower() in desc
-            ]):
+            
+            # Check if the stock name or ticker is mentioned in the title or description
+            if any([full_name.lower() in title, ticker.lower() in title, full_name.lower() in desc, ticker.lower() in desc]):
                 filtered.append(article)
         
         return filtered[:5]
@@ -271,7 +229,6 @@ def main():
     # Data Loading
     with st.spinner('Loading market data...'):
         df, info = fetch_stock_data(selected_stock, selected_period)
-        sleep(0.5)
 
     if df is None or df.empty:
         st.warning("No data available for the selected stock")
@@ -298,7 +255,8 @@ def main():
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
-    # Interactive Price Chart
+    
+    # Price chart with Bollinger Bands
     st.subheader("Price Movement")
     fig = go.Figure()
     fig.add_trace(go.Candlestick(
@@ -320,6 +278,35 @@ def main():
                 line=dict(color=color, width=2)
             ))
 
+    if show_bollinger:
+        window = 20
+        sma = df['Close'].rolling(window).mean()
+        std = df['Close'].rolling(window).std()
+        upper_band = sma + 2 * std
+        lower_band = sma - 2 * std
+        
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=sma,
+            line=dict(color='#FF6F00', width=1.5),
+            name='Bollinger Middle (20 SMA)'
+        ))
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=upper_band,
+            line=dict(color='#4CAF50', width=1.5),
+            name='Upper Band (2σ)',
+            fill=None
+        ))
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=lower_band,
+            line=dict(color='#F44336', width=1.5),
+            name='Lower Band (2σ)',
+            fill='tonexty',
+            fillcolor='rgba(76, 175, 80, 0.1)'
+        ))
+
     fig.update_layout(
         template="plotly_dark",
         height=600,
@@ -330,47 +317,75 @@ def main():
     )
     st.plotly_chart(fig, use_container_width=True)
 
+    # RSI Chart
+    if show_rsi:
+        def calculate_rsi(data, window=14):
+            delta = data['Close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+            rs = gain / loss
+            return 100 - (100 / (1 + rs))
+
+        rsi = calculate_rsi(df)
+        
+        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+        st.subheader("Relative Strength Index (RSI)")
+        fig_rsi = go.Figure()
+        fig_rsi.add_trace(go.Scatter(
+            x=df.index,
+            y=rsi,
+            line=dict(color='#8A2BE2', width=2),
+            name='RSI'
+        ))
+        fig_rsi.add_hline(y=30, line_dash="dash", line_color="green", annotation_text="Oversold")
+        fig_rsi.add_hline(y=70, line_dash="dash", line_color="red", annotation_text="Overbought")
+        fig_rsi.update_layout(
+            height=400,
+            template="plotly_dark",
+            showlegend=False,
+            margin=dict(l=20, r=20, t=40, b=20),
+            yaxis_title="RSI"
+        )
+        st.plotly_chart(fig_rsi, use_container_width=True)
+
+    # Volume chart and news sections remain the same...
+
     # Volume Chart
     st.subheader("Trading Volume")
-    fig_vol = go.Figure(go.Bar(
+    fig = go.Figure(go.Bar(
         x=df.index,
         y=df['Volume'],
-        marker_color='#4FC3F7'
+        marker=dict(color='rgba(255, 99, 132, 0.6)'),
+        name="Volume"
     ))
-    fig_vol.update_layout(
+    fig.update_layout(
         template="plotly_dark",
-        height=300,
+        height=400,
+        showlegend=False,
         margin=dict(l=20, r=20, t=40, b=20)
     )
-    st.plotly_chart(fig_vol, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True)
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
-    # Company News Section
+    # Display News
     st.subheader("Latest News")
-    news_articles = get_relevant_news(selected_stock_name, selected_stock)
+    with st.spinner("Loading news..."):
+        news_articles = get_relevant_news(selected_stock_name, selected_stock)
     
-    if not news_articles:
-        st.info("No recent news found for this company")
-    else:
+    if news_articles:
         for article in news_articles:
             title = article.get('title', '')
-            url = article.get('url', '#')
-            source = article.get('source', {}).get('name', 'Unknown')
-            date = datetime.strptime(article['publishedAt'], '%Y-%m-%dT%H:%M:%SZ').strftime('%b %d, %Y')
-            
+            description = article.get('description', '')
+            url = article.get('url', '')
             st.markdown(f"""
             <div class="news-card">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                    <small>{source}</small>
-                    <small>{date}</small>
-                </div>
-                <a href="{url}" target="_blank" style="color: #4FC3F7; text-decoration: none;">
-                    <h4>{title}</h4>
-                </a>
+                <h3><a href="{url}" target="_blank">{title}</a></h3>
+                <p>{description}</p>
             </div>
             """, unsafe_allow_html=True)
-            sleep(0.2)
+    else:
+        st.warning("No news found for the selected stock.")
 
 if __name__ == "__main__":
     main()
