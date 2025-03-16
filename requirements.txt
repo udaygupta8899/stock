@@ -4,3 +4,10 @@ pandas
 plotly
 requests
 ta
+pytorch-forecasting
+pytorch-lightning
+torch
+optuna
+scikit-learn
+numpy
+matplotlib
